@@ -11,7 +11,7 @@
 리액트 어플리케이션은 컴포넌트라고 불리는 독립된 UI 조각들로 구성된다. 리액트 컴포넌트는 `마크업을 뿌리는 자바스크립트 함수`이다. 컴포넌트들은 버튼처럼 작을 수도,
 전체 페이지처럼 클 수도 있다.
 
-2) 컴포넌트를 불러오고 내보내기(Imporing and Exporting Components)
+2) 컴포넌트를 불러오고 내보내기(Importing and Exporting Components)
 
 당신은 하나의 파일에서 많은 컴포넌트들을 선언할 수 있지만 매우 큰 파일은 유지보수하기 힘들다. 이런 문제를 해결하기 위해 esm(import, export)를 사용할 수 있다.
 
@@ -303,6 +303,144 @@ export default function Profile() {
 - 컴포넌트는 `props`를 통해 정보를 전달받는다. 이때, `props`는 `immutable`하다. 즉, 컴포넌트가 렌더링되는 동안 `props`는 변하지 않는다.
 - 반드시 props에 대한 변경을 시도하지 말자. 컴포넌트가 렌더링되는 동안 props는 변하지 않는다는 것을 기억하자.
 - 어떤 변경을 위한 정보를 전달하고 싶다면, `state`를 사용하자.
+
+## Conditional Rendering
+
+- 어떤 조건에 따라 다른 UI를 보여줘야하는 경우로 리액트에서는 주로 `if` 문, `&&` 연산자(논리 연산자), `?`와 `:` 연산자(삼항 연산자)를 사용한다.
+- `null`!!! 리액트에서 `null`은 아무것도 렌더링하지 않는다.(null은 아무것도 렌더링하지 않겠다는 의미이다.)
+
+> `null`은 아무것도 렌더링하지 않는다는 점을 이용하면, 조건부 렌더링을 할 수 있다.
+
+```jsx
+function Profile({ person }) {
+  if (person === null) {
+    return null;
+  }
+
+  return (
+    <div>
+      <Avatar person={person} />
+      <div>{person.name}</div>
+    </div>
+  );
+}
+```
+
+- 삼항연산자를 사용하여 조건부 렌더링을 할 수 있다. 단, 너무 잦은 삼항연산자 사용은 가독성을 낮출 수 있기에 자식 컴포넌트를 추출하여 정리하는 것을 고려하는 게 좋다.
+
+```jsx
+function Profile({ person }) {
+  return (
+    <div>
+      {person !== null ? (
+        <>
+          <Avatar person={person} />
+          <div>{person.name}</div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+```
+
+- 논리연산자(&&)는 주로 조건이 참일 때 일부 JSX를 렌더링하고 그렇지 않으면 아무것도 렌더링하지 않으려 할 때 자주 사용된다.
+
+```jsx 
+function Profile({ person }) {
+  return (
+    <div>
+      {person !== null && (
+        <>
+          <Avatar person={person} />
+          <div>{person.name}</div>
+        </>
+      )}
+    </div>
+  );
+}
+```
+
+> &&의 왼쪽에 숫자가 오게 하지 말자! 예를 들어 우리는 흔히 `0`이 falsy하기 때문에 `0`이 오면 `0`이 렌더링되지 않는다고 생각할 수 있다. 하지만 `0`은 falsy하지만 `false`는 아니기 때문에 `0`이 렌더링된다.
+
+```jsx
+function Example() {
+  return (
+    <div>
+      {0 && <div>zero</div>}
+      {false && <div>zero</div>}
+    </div>
+  );
+}
+```
+
+이럴 땐 0의 표현을 true/false로 바꿔주면 된다.
+
+```jsx
+function Example() {
+  return (
+    <div>
+      {!!0 && <div>zero</div>}
+      {!!false && <div>zero</div>}
+    </div>
+  );
+}
+```
+
+## Rendering Lists
+
+- 우리가 갖고 있는 데이터 모음에서 유사한 컴포넌트를 여러 개 렌더링하고 싶을 때가 있다. 이때, `map` 혹은 `filter`을 사용하면 된다.
+
+```jsx
+function ProfileList({ profiles }) {
+  return (
+    <div>
+      {profiles.map((profile) => (
+        <Profile person={profile} />
+      ))}
+    </div>
+  );
+}
+```
+
+### Keeping list items in order with `key`
+
+- 배열 형태의 데이터를 map, filter 등으로 컴포넌트로 표현할 때, `key`를 지정해주지않으면 아래와 같은 경고 메시지를 확인할 수 있다.
+
+```shell
+Warning: Each child in a list should have a unique “key” prop. 
+경고: 목록의 각 자식에는 고유한 “key” prop이 있어야 합니다.
+```
+
+- map() 호출 내부의 JSX 요소에는 항상 고유한 `key` prop을 지정해야 한다. 
+- `key`는 각 컴포넌트가 어떤 배열 항목에 해당하는지 리액트에 알려주어 나중에 매칭할 수 있도록 한다. 배열이 정렬되어 그 내부 데이터가 이동하거나, 삽입, 삭제되는 경우 key를 기반으로 추적한다.
+- key값은 프론트엔드에서 즉석으로 생성하는 것이 아닌, 데이터베이스에서 가져온 데이터의 고유한 식별자를 사용하는 것이 좋다.(로컬에서 생성된 데이터를 사용하는 경우 `crypto.randomUUID()` 혹은 `uuid`를 사용하는 것이 좋다.)
+
+```jsx
+function ProfileList({ profiles }) {
+  return (
+    <div>
+      {profiles.map((profile) => (
+        <Profile key={profile.id} person={profile} />
+      ))}
+    </div>
+  );
+}
+```
+
+> Fragment(<></>)에는 key값을 전달할 수 없으므로, 리액트에서 사용하는 Fragment를 사용할 수 있다.
+
+### Rules of keys
+
+- key는 형제 간에 고유해야 한다. 당연히 다른 데이터 배열의 JSX 노드에는 동일한 key를 사용해도 괜찮다.
+- key가 변경되지 않아야 한다. key는 컴포넌트의 `props`와 `state`에 의존해서는 안된다. key는 컴포넌트가 렌더링될 때마다 고유한 값이어야 한다.
+
+### Why does React need keys???
+
+- 데스크톱 파일에 이름 대신 순서가 적혀있다고 생각해보자. 처음엔 나쁘지 않지만, 첫번째 파일이 지워지면 `두번째 파일이 곧 첫번째 파일이 된다.` 즉, 헷갈리게 된다.(그냥 배열의 index로 key를 지정하면 이런 문제가 발생한다.)
+- 이 때, 폴더의 파일 이름과 JSX key는 비슷한 역할을 한다. key를 사용하면 형제 항목 사이에서 특정 항목을 고유하게 식별할 수 있다. 데이터 내의 고유한 id를 통해 key를 지정하게 되면 재정렬로 인해 데이터의 위치가 변경되더라도 key는 변하지 않기 때문에 문제가 발생하지 않는다.
+
+> 절대로 key를 `Math.random()`과 같이 즉석에서 생성하면 안된다. 렌더링될 때마다 새로운 key가 생성되기 때문에 컴포넌트가 불필요하게 리렌더링되고 성능이 저하된다.<br/>
+> 컴포넌트는 `key`를 prop으로 받지 않는다. 만약 자식 컴포넌트에게 어떤 고유한 id를 전달해주고 싶다면 별도의 prop으로 전달해야 한다. `<Profile key ={id} userId={id} />`
 
 # 참고
 
