@@ -295,3 +295,146 @@ export default function Signup() {
 이벤트 핸들러에서는 수많은 side effect가 발생할 수 있다. 
 렌더링 함수(컴포넌트)와 달리 이벤트 핸들러는 순수할 필요가 없다! 하지만 이런 이벤트에 따라 일부 정보를 변경하려면 먼저
 정보를 저장할 방법이 필요하다. 이 때, `state`를 사용하면 된다.
+
+## State: A Component's Memory
+
+컴포넌트는 상호 작용의 결과로 화면의 내용을 변경한다. 이 때, 컴포넌트는 이전에 어떤 상호 작용이 있었는지 기억해야 한다.
+이런 종류의 컴포넌트 별 메모리를 `state`라고 부른다.
+
+### When a regular variable isn’t enough
+
+```jsx
+import { sculptureList } from './data.js';
+
+export default function Gallery() {
+  let index = 0;
+
+  function handleClick() {
+    index = index + 1;
+  }
+
+  let sculpture = sculptureList[index];
+  return (
+    <>
+      <button onClick={handleClick}>
+        Next
+      </button>
+      <h2>
+        <i>{sculpture.name} </i> 
+        by {sculpture.artist}
+      </h2>
+      <h3>  
+        ({index + 1} of {sculptureList.length})
+      </h3>
+      <img 
+        src={sculpture.url} 
+        alt={sculpture.alt}
+      />
+      <p>
+        {sculpture.description}
+      </p>
+    </>
+  );
+}
+```
+
+위 예제에서 버튼을 클릭해도 화면이 변하지 않는다.
+
+- 지역 변수는 렌더링 간에 유지되지 않는다. React가 이 컴포넌트를 두번째로 렌더링할 때 지역 변수에 대한 변경 사항을 고려하지 않는다.
+- 지역 변수를 변경해도 렌더링을 발동시키지 않는다. 단순 지역변수의 변경으로 React는 컴포넌트를 다시 렌더링할 것을 인지하지 못한다.
+
+이 때, 컴포넌트를 새 데이터로 업데이트하려면 2가지의 작업이 필요하다.
+
+- 렌더링 사이, 데이터를 유지해야한다.
+- 새로운 데이터로 컴포넌트를 다시 렌더링해야 한다.
+
+위의 2가지를 제공하는 것이 `useState` 훅이다.
+
+### Meet your first Hook
+
+React에서는 `use`로 시작하는 함수를 훅(hook)이라고 부른다.
+훅은 렌더링 중일 때만 사용할 수 있는 특별한 함수이다.
+
+> 훅은 컴포넌트의 최상위 레벨 혹은 커스텀 훅에서만 호출할 수 있다.<br/>
+> 훅은 함수이지만 컴포넌트의 필요에 대한 무조건적인 선언으로 생각하면 편하다.<br/>
+> 파일 상단에서 모듈을 `import`하는 것과 유사하게 컴포넌트 상단에서 React 기능을 사용한다.
+
+### Anatomy of useState
+
+`useState`를 호출한다는 건, React 컴포넌트가 무언가를 기억하도록 요청하는 것이다.
+
+```jsx
+import { useState } from 'react';
+
+const [index, setIndex] = useState(0);
+```
+
+위의 경우, React가 `index`를 기억하기를 원하는 것이다.
+
+컴포넌트가 렌더링될 때마다 `useState`는 2개의 값을 포함하는 배열을 제공한다.
+
+- 저장한 값을 가진 state 변수
+- state 변수를 업데이트 및 React가 컴포넌트를 다시 렌더링하도록 트리거할 수 있는 setter 함수
+
+useState의 동작 원리!
+
+위의 index state를 예제로 들도록 해보자
+
+1. 컴포넌트가 처음 렌더링된다. index의 초기값으로 0을 useState에 전달되었으므로 `[0, setIndex]`가 반한된다. 이 때, React는 0을 최신 state로 기억한다.
+2. state를 업데이트한다. react는 이제 1을 최신 state로 기억한다.
+3. 컴포넌트가 리렌더링된다. 물론 여전히 useState(0)인 코드가 있지만, index를 1로 설정한 것을 기억해서 [1, setIndex]를 반환한다.
+
+### Giving a component multiple state variables
+
+하나의 컴포넌트에 여러개의 state 변수를 사용할 수 있다. 이 때, 서로 연관이 있는(두개의 state 변수를 자주 함께 변경하는) 경우 하나의 state 변수로 관리하는 것이 좋다.
+
+어떤 state를 반환할지 React는 어떻게 알 수 있을까?
+
+> `useState`호출이 어떤 state 변수를 참조하는지에 대한 정보를 받지 못한다. 이런 '식별자'가 없는데 어떤 state 변수를 반환할지 어떻게 알 수 있을까?
+> 훅은 `동일한 컴포넌트의 모든 렌더링에서 안정적이고 동일한 순서로 호출되어야 한다.` 즉, 훅은 항상 같은 순서로 호출되어야 하기 때문에 최상위 계층에서 호출되어야 하는 것이다.(eslint-plugin-react-hooks이 이를 잘 잡아준다.)
+
+> React는 내부적으로 모든 컴포넌트에 대한 한 쌍의 state의 배열을 갖는다. 또한 렌더링 전에 `0`으로 설정된 현재 쌍 인덱스를 유지한다. `useState`를 호출할 때마다 React는 다음 state 쌍을 제공하면서 index를 1 증가시킨다.
+
+```jsx
+let componentHooks = [];
+let currentHookIndex = 0;
+
+// How useState works inside React (simplified).
+function useState(initialState) {
+  let pair = componentHooks[currentHookIndex];
+  if (pair) {
+    // This is not the first render,
+    // so the state pair already exists.
+    // Return it and prepare for next Hook call.
+    currentHookIndex++;
+    return pair;
+  }
+
+  // This is the first time we're rendering,
+  // so create a state pair and store it.
+  pair = [initialState, setState];
+
+  function setState(nextState) {
+    // When the user requests a state change,
+    // put the new value into the pair.
+    pair[0] = nextState;
+    updateDOM();
+  }
+
+  // Store the pair for future renders
+  // and prepare for the next Hook call.
+  componentHooks[currentHookIndex] = pair;
+  currentHookIndex++;
+  return pair;
+}
+```
+
+즉, `[[state1, setState1], [state2, setState2], ...]` 이런식으로 저장되어있는 것이다.
+
+### State is isolated and private
+
+state는 컴포넌트에 의해 완전히 캡슐화된다. 즉, state는 컴포넌트 외부에서 접근할 수 없다.<br/>
+이 부분이 바로 `모듈 상단에 선언하는 일반 변수`와 `state`의 차이점이다. state는 특정 함수 호출에 묶이지 않고, 코드의 특정 위치에도 묶이지 않으면서 화면상의 특정 위치에 지역적이다.
+또한, state는 이를 선언한 컴포넌트 외에는 완전히 비공개되고, 부모 컴포넌트는 이를 변경할 수 없다. 
+
+만약 state를 두개의 컴포넌트가 공유하고 동기화하려면 가장 가까운 부모 컴포넌트에 두어 props로 전달해야 한다.
