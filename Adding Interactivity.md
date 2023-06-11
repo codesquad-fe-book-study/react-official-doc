@@ -58,7 +58,7 @@ JSX에서 중괄호(`{}`)는 JavaScript 식을 평가하고 해당 결과를 JSX
 
 ## #04
 > **By calling the component functions twice, Strict Mode helps find components that break these rules.**
-- StricMode가 왜 두번씩 실행하는지? Component가 순수함수가 아닌지 확인하기 위함
+- StrictMode가 왜 두번씩 실행하는지? Component가 순수함수가 아닌지 확인하기 위함
 - don’t mutate variables outside of the function’s scope or objects that were created before the call
 
 ## #05
@@ -167,3 +167,4 @@ setPosition({
 	y: e.clientY
 });
 ```
+
