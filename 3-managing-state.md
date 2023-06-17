@@ -623,3 +623,86 @@ input을 담고 있는 Chat 컴포넌트에 key를 전달함으로써 input의 s
 - React state 외에 다른 소스를 사용할 수도 있다. 예를 들어, 사용자가 실수로 페이지를 닫아도 메시지 초안이 유지되기를 원할 수 있다. 이를 구현하기 위해 localStorage를 사용할 수 있다.
 
 어떤 방법을 사용하든 개념적으로 구분되어야 하는 컴포넌트라면 key를 사용해야 한다.
+
+## Extracting State Logic into a Reducer
+
+여러 개의 state를 업데이트하는 함수들이 여러 이벤트 핸들러에 분산되어있는 컴포넌트는 과부하가 걸릴 수 있다. 이런 경우, reducer라고 하는 하나의 함수를 사용하여 
+컴포넌트 외부의 모든 state 업데이트 로직을 통합할 수 있다.
+
+### Consolidate state logic with a reducer
+
+1. state를 설정하는 것에서 action들을 전달하는 것으로 변경하기
+2. reducer 함수 작성하기
+3. 컴포넌트에서 reducer 사용하기
+
+#### Step 1: Move from setting state to dispatching actions
+
+아래와 같이 state를 업데이트하는 이벤트 핸들러들이 있다.
+
+```jsx
+function handleAddTask(text) {
+  setTasks([
+    ...tasks,
+    {
+      id: nextId++,
+      text: text,
+      done: false,
+    },
+  ]);
+}
+
+function handleChangeTask(task) {
+  setTasks(
+    tasks.map((t) => {
+      if (t.id === task.id) {
+        return task;
+      } else {
+        return t;
+      }
+    })
+  );
+}
+
+function handleDeleteTask(taskId) {
+  setTasks(tasks.filter((t) => t.id !== taskId));
+}
+```
+
+- 사용자가 'ADD'를 누르면 `handleAddTask`가 호출되고, 새로운 task가 추가된다.
+- 사용자가 task를 토글하거나 'SAVE'를 누르면 `handleChangeTask`가 호출되고, 해당 task가 업데이트된다.
+- 사용자가 'DELETE'를 누르면 `handleDeleteTask`가 호출되고, 해당 task가 삭제된다.
+
+reducer를 사용하여 state를 관리하는 것은 state를 직접 설정하는 것과는 조금 다르다. state를 설정하여 react에게 '무엇을 할지'를 지시하는 대신,
+`이벤트 핸들러에서 action을 전달하여 사용자가 방금 한 일을 지정한다.`(그리고 state를 업데이트하는 로직은 다른 곳에 있다.) 즉, 이벤트 핸들러를 통해
+`task를 ADD, UPDATE, DELETE`하는 `action`을 전달하는 것이다.
+
+```jsx
+function handleAddTask(text) {
+  dispatch({
+    type: 'added',
+    id: nextId++,
+    text: text,
+  });
+}
+
+function handleChangeTask(task) {
+  dispatch({
+    type: 'changed',
+    task: task,
+  });
+}
+
+function handleDeleteTask(taskId) {
+  dispatch({
+    type: 'deleted',
+    id: taskId,
+  });
+}
+```
+
+dispatch에 인자로 전달해준 객체를 `action`이라고 한다. 이 객체에 무엇을 담을지는 자유이지만, 일반적으로는 `무슨 일이 일어날지`에 대한 최소한의 정보를 포함해야 한다.
+
+> action 객체는 정말 어떤 형태든 상관없다.<br/>
+> 일반적으로는 `무슨 일이 일어나는지`를 나타내는 `type`을 지정하고 추가적인 정보는 다른 키값으로 전달하는 게 일반적이다.
+
+#### Step 2: Write a reducer function
