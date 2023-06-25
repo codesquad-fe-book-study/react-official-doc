@@ -623,3 +623,326 @@ input을 담고 있는 Chat 컴포넌트에 key를 전달함으로써 input의 s
 - React state 외에 다른 소스를 사용할 수도 있다. 예를 들어, 사용자가 실수로 페이지를 닫아도 메시지 초안이 유지되기를 원할 수 있다. 이를 구현하기 위해 localStorage를 사용할 수 있다.
 
 어떤 방법을 사용하든 개념적으로 구분되어야 하는 컴포넌트라면 key를 사용해야 한다.
+
+## Extracting State Logic into a Reducer
+
+여러 개의 state를 업데이트하는 함수들이 여러 이벤트 핸들러에 분산되어있는 컴포넌트는 과부하가 걸릴 수 있다. 이런 경우, reducer라고 하는 하나의 함수를 사용하여 
+컴포넌트 외부의 모든 state 업데이트 로직을 통합할 수 있다.
+
+### Consolidate state logic with a reducer
+
+1. state를 설정하는 것에서 action들을 전달하는 것으로 변경하기
+2. reducer 함수 작성하기
+3. 컴포넌트에서 reducer 사용하기
+
+#### Step 1: Move from setting state to dispatching actions
+
+아래와 같이 state를 업데이트하는 이벤트 핸들러들이 있다.
+
+```jsx
+function handleAddTask(text) {
+  setTasks([
+    ...tasks,
+    {
+      id: nextId++,
+      text: text,
+      done: false,
+    },
+  ]);
+}
+
+function handleChangeTask(task) {
+  setTasks(
+    tasks.map((t) => {
+      if (t.id === task.id) {
+        return task;
+      } else {
+        return t;
+      }
+    })
+  );
+}
+
+function handleDeleteTask(taskId) {
+  setTasks(tasks.filter((t) => t.id !== taskId));
+}
+```
+
+- 사용자가 'ADD'를 누르면 `handleAddTask`가 호출되고, 새로운 task가 추가된다.
+- 사용자가 task를 토글하거나 'SAVE'를 누르면 `handleChangeTask`가 호출되고, 해당 task가 업데이트된다.
+- 사용자가 'DELETE'를 누르면 `handleDeleteTask`가 호출되고, 해당 task가 삭제된다.
+
+reducer를 사용하여 state를 관리하는 것은 state를 직접 설정하는 것과는 조금 다르다. state를 설정하여 react에게 '무엇을 할지'를 지시하는 대신,
+`이벤트 핸들러에서 action을 전달하여 사용자가 방금 한 일을 지정한다.`(그리고 state를 업데이트하는 로직은 다른 곳에 있다.) 즉, 이벤트 핸들러를 통해
+`task를 ADD, UPDATE, DELETE`하는 `action`을 전달하는 것이다.
+
+```jsx
+function handleAddTask(text) {
+  dispatch({
+    type: 'added',
+    id: nextId++,
+    text: text,
+  });
+}
+
+function handleChangeTask(task) {
+  dispatch({
+    type: 'changed',
+    task: task,
+  });
+}
+
+function handleDeleteTask(taskId) {
+  dispatch({
+    type: 'deleted',
+    id: taskId,
+  });
+}
+```
+
+dispatch에 인자로 전달해준 객체를 `action`이라고 한다. 이 객체에 무엇을 담을지는 자유이지만, 일반적으로는 `무슨 일이 일어날지`에 대한 최소한의 정보를 포함해야 한다.
+
+> action 객체는 정말 어떤 형태든 상관없다.<br/>
+> 일반적으로는 `무슨 일이 일어나는지`를 나타내는 `type`을 지정하고 추가적인 정보는 다른 키값으로 전달하는 게 일반적이다.
+
+#### Step 2: Write a reducer function
+
+reducer 함수에 state 관련 로직을 둘 수 있다.
+
+```jsx
+function reducer(state, action) {
+  // return next state for React to set
+}
+```
+
+1. 현재의 state(tasks)를 첫 번째 매개변수로 선언하세요.
+2. action 객체를 두 번째 매개변수로 선언하세요.
+3. 다음 state를 reducer 함수에서 반환하세요. (React가 state로 설정할 것입니다.)
+
+```jsx
+function tasksReducer(tasks, action) {
+  if (action.type === 'added') {
+    return [
+      ...tasks,
+      {
+        id: action.id,
+        text: action.text,
+        done: false,
+      },
+    ];
+  } else if (action.type === 'changed') {
+    return tasks.map((t) => {
+      if (t.id === action.task.id) {
+        return action.task;
+      } else {
+        return t;
+      }
+    });
+  } else if (action.type === 'deleted') {
+    return tasks.filter((t) => t.id !== action.id);
+  } else {
+    throw Error('Unknown action: ' + action.type);
+  }
+}
+```
+
+reducer 함수는 state(tasks)를 매개변수로 갖기 때문에, `컴포넌트 외부에서도 reducer 함수를 선언할 수 있다.`
+
+일반적으로 reducer는 위와 같은 `if~else`보단 `switch`문을 사용한다.
+
+```jsx
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added':
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    case 'changed':
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    case 'deleted':
+      return tasks.filter((t) => t.id !== action.id);
+    default:
+      throw Error('Unknown action: ' + action.type);
+  }
+}
+```
+
+> 왜 `reducer`라고 부르는가???<br/>
+> 컴포넌트 내부의 코드 양을 줄여주는(reduce) 것도 있지만 실제로는 고차함수인 `reduce`를 따서 지은 이름이다.<br/>
+> `지금까지의 결과와 현재의 아이템을 가지고, 다음 결과를 반환한다.`의 개념<br/>
+
+#### Step 3: Use the reducer from your component
+
+끝으로 여러 컴포넌트에 `reducer`를 연결해야 한다. 이 때 사용도는 게 useReducer이다.
+
+`useReducer` 훅은 `useState`와 굉장히 닮아있다. useReducer 훅은 reducer 함수와 초기 state를 인자로 받는다.
+
+```jsx
+import { useReducer } from 'react';
+import AddTask from './AddTask.js';
+import TaskList from './TaskList.js';
+
+export default function TaskApp() {
+  const [tasks, dispatch] = useReducer(tasksReducer, initialTasks);
+
+  function handleAddTask(text) {
+    dispatch({
+      type: 'added',
+      id: nextId++,
+      text: text,
+    });
+  }
+
+  function handleChangeTask(task) {
+    dispatch({
+      type: 'changed',
+      task: task,
+    });
+  }
+
+  function handleDeleteTask(taskId) {
+    dispatch({
+      type: 'deleted',
+      id: taskId,
+    });
+  }
+
+  return (
+    <>
+      <h1>Prague itinerary</h1>
+      <AddTask onAddTask={handleAddTask} />
+      <TaskList
+        tasks={tasks}
+        onChangeTask={handleChangeTask}
+        onDeleteTask={handleDeleteTask}
+      />
+    </>
+  );
+}
+
+function tasksReducer(tasks, action) {
+  switch (action.type) {
+    case 'added': {
+      return [
+        ...tasks,
+        {
+          id: action.id,
+          text: action.text,
+          done: false,
+        },
+      ];
+    }
+    case 'changed': {
+      return tasks.map((t) => {
+        if (t.id === action.task.id) {
+          return action.task;
+        } else {
+          return t;
+        }
+      });
+    }
+    case 'deleted': {
+      return tasks.filter((t) => t.id !== action.id);
+    }
+    default: {
+      throw Error('Unknown action: ' + action.type);
+    }
+  }
+}
+
+let nextId = 3;
+const initialTasks = [
+  {id: 0, text: 'Visit Kafka Museum', done: true},
+  {id: 1, text: 'Watch a puppet show', done: false},
+  {id: 2, text: 'Lennon Wall pic', done: false},
+];
+```
+
+> 아래는 버튼 카운트를 셀 수 있는 간단한 예제 코드이다.
+
+```jsx
+import { useState, useReducer } from "react";
+import "./styles.css";
+
+const reducer = (state, action) => {
+  if (action.type === "ADD") {
+    return state + 1;
+  }
+};
+
+export default function App() {
+  const [count, dispatch] = useReducer(reducer, 0);
+  const handleClick = () => {
+    dispatch({ type: "ADD" });
+  };
+  return (
+    <div className="App">
+      <h1>클릭 수: {count}</h1>
+      <button onClick={handleClick}>
+        <h2>카운트 증가</h2>
+      </button>
+    </div>
+  );
+}
+```
+
+### Compoaring useState and useReducer
+
+1. 코드의 크기: reducer는 switch문을 사용하기 때문에 코드의 크기가 useState보다 크다. 하지만 state 관리 로직을 별도로 분리할 수 있고 비슷한 로직으로 state를 업데이트하는 경우 코드를 줄이는 데 도움이 된다.
+2. 가독성: 상태관리가 복잡해질수록 reducer를 사용하는 것이 가독성이 좋다.
+3. 디버깅: reducer는 state를 업데이트하는 로직을 한 곳에 모아두기 때문에 디버깅이 쉽다.
+4. 테스팅: reducer는 순수함수이기 때문에 테스팅이 쉽다.
+
+> 반드시 useState와 useReducer 중에 하나만 골라야 하는 것이 아니니, 상황에 맞게 사용하면 된다. 또한, 동시에 사용해도 된다!
+
+### Writing reducers well
+
+1. reducer는 순수함수여야 한다. reducer는 렌더링 중에 실행된다. action들은 다음 렌더링까지 큐에서 대기한다. 
+2. 각 action은 여러 데이터가 변경되더라도, 하나의 사용자 액션에 대응해야 한다.
+
+> Immer 라이브러리 중 `use-immer`의 `useImmerReducer` 훅을 사용하면 불변성을 유지하면서 reducer를 작성할 수 있다.
+
+## Passing Data Deeply with Context
+
+일반적으로 부모에서 자식 컴포넌트로 어떤 정보를 전달할 때, props를 이용한다. 이 때, 중간에 여러 컴포넌트를 거쳐야하는 일이 생기게 되는데,
+Context를 사용하면 props를 통하지 않고 정보를 전달할 수 있다.
+
+> props를 전달하지 않고도 트리에서 데이터를 필요한 컴포넌트로 “텔레포트”할 수 있는 방법이 있다면 좋지 않을까? React의 context 기능을 사용하면 가능하다!
+
+### Context: an alternative to passing props
+
+1. context를 생성합니다.
+2. 데이터가 필요한 컴포넌트에서 해당 context를 사용합니다.
+3. 데이터를 지정하는 컴포넌트에서 해당 context를 제공합니다.
+
+#### Step 1: Create the context
+
+```jsx
+import { createContext } from 'react';
+
+export const Context = createContext(null);
+```
+
+#### Step 2: Use the context
+
+```jsx
+import { useContext } from 'react';
+import { Context } from './Context.js';
+
+function Temp() {
+  const value = useContext(Context);
+  // ...
+}
+```
+
